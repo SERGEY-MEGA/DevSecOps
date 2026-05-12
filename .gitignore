@@ -1,0 +1,15 @@
+.DS_Store
+**/.DS_Store
+
+# Local runtime and editor files
+.env
+.env.*
+!.env.example
+node_modules/
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+
+# Generated local outputs
+*.log

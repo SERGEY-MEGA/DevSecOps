@@ -1,0 +1,81 @@
+stages:
+  - sca
+  - upload
+
+variables:
+  TRIVY_CACHE_DIR: ".trivycache"
+
+trivy_sca:
+  stage: sca
+  image:
+    name: localhost:5000/trivy:latest
+    entrypoint: [""]
+  script:
+    - trivy --version
+    - trivy fs --format cyclonedx --output sbom.cdx.json .
+    - trivy fs --scanners vuln --format json --output trivy-fs-vuln.json .
+    - echo "SBOM and Trivy vulnerability report generated"
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - sbom.cdx.json
+      - trivy-fs-vuln.json
+
+upload_dependency_track:
+  stage: upload
+  image:
+    name: localhost:5000/semgrep:latest
+    entrypoint: [""]
+  needs:
+    - job: trivy_sca
+      artifacts: true
+  script:
+    - test -n "$DEPENDENCYTRACK_URL"
+    - test -n "$DEPENDENCYTRACK_API_KEY"
+    - test -n "$DEPENDENCYTRACK_PROJECT_UUID"
+    - |
+      python3 - <<'PY'
+      import base64
+      import json
+      import os
+      import time
+      import urllib.request
+
+      api = os.environ["DEPENDENCYTRACK_URL"].rstrip("/")
+      key = os.environ["DEPENDENCYTRACK_API_KEY"]
+      project = os.environ["DEPENDENCYTRACK_PROJECT_UUID"]
+
+      with open("sbom.cdx.json", "rb") as fh:
+          bom = base64.b64encode(fh.read()).decode()
+
+      payload = json.dumps({"project": project, "bom": bom}).encode()
+      req = urllib.request.Request(
+          f"{api}/api/v1/bom",
+          data=payload,
+          method="PUT",
+          headers={
+              "Content-Type": "application/json",
+              "X-API-Key": key,
+          },
+      )
+
+      with urllib.request.urlopen(req, timeout=30) as response:
+          result = json.loads(response.read().decode())
+      token = result["token"]
+      print(f"Dependency-Track upload token: {token}")
+
+      for _ in range(30):
+          status_req = urllib.request.Request(
+              f"{api}/api/v1/bom/token/{token}",
+              headers={"X-API-Key": key},
+          )
+          with urllib.request.urlopen(status_req, timeout=30) as response:
+              status = json.loads(response.read().decode())
+          print(status)
+          if status.get("processing") is False:
+              raise SystemExit(0)
+          time.sleep(10)
+
+      raise SystemExit("Dependency-Track did not finish processing in time")
+      PY
